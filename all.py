@@ -5,6 +5,10 @@
 import re
 import regex
 from typing import Dict, List
+from datetime import datetime
+import codecs
+import binascii
+import base64
 
 
 def num_card(text: str) -> str:
@@ -36,7 +40,7 @@ def check_luhn(text: str) -> bool:
 
     for i in range(len(card)):
         num_text = int(card[i])
-        if i % 2 == 0:
+        if i % 2 == 0 :
             if num_text * 2 > 9:
                 total_sum += (2 * num_text) - 9
             else:
@@ -50,12 +54,12 @@ def check_luhn(text: str) -> bool:
 def find_and_validate_credit_cards(text: str) -> Dict[str, List[str]]:
     '''
     Finds and verifies credit card numbers in the text.
-
+    
     Args:
         text (str): Text for searching for card numbers
-
+        
     Returns:
-        Dictionary with 'valid' and 'invalid' keys containing lists
+        Dictionary with 'valid' and 'invalid' keys containing lists 
         valid and invalid card numbers
     '''
 
@@ -103,6 +107,8 @@ def find_secrets(text: str) -> List[str]:
 
         r'AKIA[0-9A-Z]{16}',
 
+        r'AIza[0-9A-Za-z_-]{35}',
+
         r'Basic\s+[a-zA-Z0-9=+/]{20,}',
         r'Bearer\s+[a-zA-Z0-9._-]+',
 
@@ -135,7 +141,7 @@ def find_system_info(text: str) -> Dict[str, List[str]]:
         {'ips': [], 'files': [], 'emails': []}
     '''
 
-    part = r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'  # шаблон для IP4, далее его *4#
+    part = r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)' #шаблон для IP4, далее его *4#
     ipv4 = rf'(?:{part}\.){{3}}{part}'
     ipv6 = (
         r'(?:'
@@ -176,7 +182,7 @@ def find_system_info(text: str) -> Dict[str, List[str]]:
 
     # Файлы
     files_pattern = regex.compile(
-        r'\b[A-Z0-9_(){}\-]+\.(?:txt|docx?|pdf|png|jpg|jpeg|exe|csv|py|html|json|xml|zip|rar)\b',
+    r'\b[A-Z0-9_(){}\-]+\.(?:txt|docx?|pdf|png|jpg|jpeg|exe|csv|py|html|json|xml|zip|rar)\b',
         regex.IGNORECASE
     )
 
@@ -185,6 +191,73 @@ def find_system_info(text: str) -> Dict[str, List[str]]:
     emails = [m.group(0) for m in email_pattern.finditer(text)]
 
     return {'ips': ips, 'files': files, 'emails': emails}
+
+
+def decode_messages(text: str) -> Dict[str, List[str]]:
+    """
+    Finds and decrypts messages in text:
+    - Base64 (strings, length multiple of 4; trailing =/== allowed)
+    - Hex: 0x... or \\xHH\\xHH...
+    - ROT13 (simple attempt: words/phrases of letters and numbers)
+    Returns a dictionary {'base64': [...], 'hex': [...], 'rot13': [...]}
+    """
+
+    base64_pattern = regex.compile(r'\b(?:[A-Z0-9+/]{4}){2,}(?:==|=)?\b',
+    regex.IGNORECASE
+              )
+    base_decoded = []
+    for match in base64_pattern.findall(text):
+        if len(match) % 4 != 0:
+            continue
+        try:
+            # validate=True заставит b64decode выдавать ошибку, если есть недопустимые символы
+            decoded_bytes = base64.b64decode(match, validate=True)
+            decoded = decoded_bytes.decode('utf-8')
+        except (binascii.Error, UnicodeDecodeError):
+            continue
+        if decoded.isprintable():
+            base_decoded.append(decoded)
+
+    hex_pattern = regex.compile(r'0x[0-9A-F]+|(?:\\x[0-9A-Fa-f]{2})+',
+    regex.IGNORECASE
+    )
+    hex_decoded = []
+    for match in hex_pattern.findall(text):
+        try:
+            if match.startswith("0x") or match.startswith('0X'):
+                # убираем префикс 0x и переводим hex в байты
+                hexstr = match[2:]
+                # если длина нечётная — некорректно
+                if len(hexstr) % 2 != 0:
+                    continue
+                bytes_data = bytes.fromhex(hexstr)
+            else:
+                # match содержит последовательности вида '\x48\x65...'
+                # извлечём все пары HH через поиск групп
+                pairs = regex.findall(r'\\x([0-9A-Fa-f]{2})', match)
+                if not pairs:
+                    continue
+                bytes_data = bytes.fromhex(''.join(pairs))
+            decoded = bytes_data.decode('utf-8')
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if decoded.isprintable():
+            hex_decoded.append(decoded)
+
+    rot13_pattern = regex.compile(r'\b[A-Za-z0-9!?.]+(?:\s[A-Za-z0-9!?.]+)*\b')
+    rot13_decoded = []
+    for match in rot13_pattern.findall(text):
+        decoded = codecs.decode(match, 'rot_13')
+        # фильтры: должно отличаться и быть читаемым
+        if decoded.isprintable() and decoded.lower() != match.lower():
+            rot13_decoded.append(decoded)
+
+    return {
+        'base64': base_decoded,
+        'hex': hex_decoded,
+        'rot13': rot13_decoded
+    }
+
 
 
 def analyze_logs(log_text: str) -> Dict[str, List[str]]:
@@ -296,6 +369,186 @@ def analyze_logs(log_text: str) -> Dict[str, List[str]]:
     }
 
 
+def leap_year(year: int) -> bool:
+    """
+    Determine whether a given year is a leap year.
+
+    Args:
+        year (int): The year to check.
+
+    Returns:
+        bool: True if the year is a leap year, False otherwise.
+    """
+    return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+
+
+def days_check(month: int, year: int, day: int) -> bool:
+    """
+    Check if the given day is valid for the specified month and year.
+
+    Args:
+        month (int): Month number (1-12).
+        year (int): Year number.
+        day (int): Day number.
+
+    Returns:
+        bool: True if the day is valid for the month, False otherwise.
+    """
+
+    if month in [4, 6, 9, 11] and day > 30:
+        return False
+
+    if month == 2:
+        if leap_year(year) and day > 29:
+            return False
+        elif not leap_year(year) and day > 28:
+            return False
+
+    return True
+
+
+def add_spase(text: str) -> str:
+    text_list = []
+    text = str(text)
+
+    for i in range(16):
+        if (i + 1) % 4 != 0:
+            text_list.append(text[i])
+        else:
+            text_list.append(text[i])
+            text_list.append(" ")
+
+    return "".join(text_list)
+
+
+def parse_date(date_str: str):
+    formats = ['%d.%m.%Y', '%Y/%m/%d', '%d-%b-%Y', '%d-%m-%Y','%d/%m/%Y','%d-%m-%Y',
+                    '%Y.%m.%d', '%Y-%m-%d', '%d/%b/%Y', '%d.%b.%Y' ,'%Y-%b-%d',
+                    '%Y.%b.%d', '%d-%B-%Y', '%d/%B/%Y', '%d.%B.%Y', '%Y-%B-%d','%Y.%B.%d']
+
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.strftime('%d.%m.%Y')
+        except ValueError:
+            continue
+
+    return None
+
+
+def phones(data1):
+    result = {
+        'phones': {'valid': [], 'invalid': []},
+        'dates': {'normalized': [], 'invalid': []},
+        'inn': {'valid': [], 'invalid': []},
+        'cards': {'valid': [], 'invalid': []}
+             }
+
+    data_num = data1.get('phones', [])
+    pattern = (r"(\+7|8|007)[ ]?[\-*.(]?\d{3}[)\-*.]?[ ]?"
+               r"\d{3}[ \-\.]?\d{2}[ \-\.]?\d{2}")
+
+    for phone in data_num:
+        number_match = re.match(pattern, phone)
+        if number_match:
+            first_num = number_match.group(0)
+            number_digits = re.sub(r'\D', '', phone)
+            if first_num.startswith("+7") or first_num.startswith("7"):
+                if first_num.startswith("+7"):
+                    normal_phone = "+7" + number_digits[1:]
+                else:
+                    normal_phone = "+7" + number_digits[1:]
+                result['phones']['valid'].append(normal_phone)
+            elif first_num.startswith("8"):
+                normal_phone = "+7" + number_digits[1:]
+                result['phones']['valid'].append(normal_phone)
+            elif first_num.startswith("007"):
+                normal_phone = "+7" + number_digits[3:]
+                result['phones']['valid'].append(normal_phone)
+            else:
+                normal_phone = "+7" + number_digits
+                result['phones']['valid'].append(normal_phone)
+        else:
+            result['phones']['invalid'].append(phone)
+
+    for date_str in data1.get('dates', []):
+        date_str = date_str.strip()
+        normalized = parse_date(date_str)
+        dt = datetime.strptime(normalized, '%d.%m.%Y')
+        year = dt.year
+        month = dt.month
+        day = dt.day
+        if normalized and days_check(month, year, day):
+            result['dates']['normalized'].append(normalized)
+        else:
+            result['dates']['invalid'].append(date_str)
+
+    for inn in data1.get('inn', []):
+        if not re.fullmatch(r'\d+', inn):
+            result['inn']['invalid'].append(inn)
+        else:
+            inn_digits = inn
+            if len(inn_digits) in (10, 12):
+                result['inn']['valid'].append(inn_digits)
+            else:
+                result['inn']['invalid'].append(inn)
+
+    for card in data1.get('cards', []):
+        pattern_2 = r'\b(?:\d{4} ?[- ]? ?){3}\d{4}\b'
+        potential_cards = re.match(pattern_2, card)
+        if potential_cards:
+            if check_luhn(num_card(card)):
+                card_digits = num_card(card)
+                result['cards']['valid'].append(add_spase(card_digits))
+            else:
+                card_digits = num_card(card)
+                result['cards']['invalid'].append(add_spase(card_digits))
+        else:
+            card_digits = num_card(card)
+            result['cards']['invalid'].append(add_spase(card_digits))
+    return result
+
+
+def read_and_parse(filepath: str) -> Dict[str, List[str]]:
+    data = {
+        'phones': [],
+        'dates': [],
+        'inn': [],
+        'cards': []
+    }
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+
+            parts = line.split(':', 1)
+            if len(parts) != 2:
+                continue
+
+            category = parts[0].strip().lower()
+            values_str = parts[1].strip()
+
+            values = re.split(r'[;,]', values_str)
+            values = [vl.strip() for vl in values if vl.strip()]
+
+            if category == 'телефоны':
+                for vl in values:
+                    data['phones'].append(vl)
+            elif category == 'даты':
+                for vl in values:
+                    data['dates'].append(vl)
+            elif category == 'инн':
+                for vl in values:
+                    data['inn'].append(vl)
+            elif category == 'карты':
+                for vl in values:
+                    data['cards'].append(vl)
+    return data
+
+
 def generate_comprehensive_report(main_text: str, log_text: str,
                                   messy_data: str) -> Dict:
     '''
@@ -310,11 +563,16 @@ def generate_comprehensive_report(main_text: str, log_text: str,
         A full report with all the data and threats found
     '''
 
+    parsed_data = read_and_parse(messy_data)
+    normalized_data = phones(parsed_data)
+
     report = {
         'financial_data': find_and_validate_credit_cards(main_text),
         'secrets': find_secrets(main_text),
         'system_info': find_system_info(main_text),
+        'encoded_massages': decode_messages(main_text),
         'security_threats': analyze_logs(log_text),
+        'normalized_data': normalized_data
     }
     return report
 
@@ -345,25 +603,20 @@ def print_report(report: Dict) -> None:
     for k, v in report['system_info'].items():
         print(f" {k.upper()}: {', '.join(v) if v else '—'}")
 
+    print(f"\nРАСШИФРОВАННЫЕ СООБЩЕНИЯ:")
+    for k, v in report['encoded_massages'].items():
+        if v: print(f" {k}: {len(v)}")
+
     print("\nУГРОЗЫ БЕЗОПАСНОСТИ:")
     for k, v in report['security_threats'].items():
         print(f" {k}: {len(v)} найдено")
 
-    results = analyze_logs(log_text)
-    print("=== РЕЗУЛЬТАТЫ АНАЛИЗА ===")
-    print(f"Найдено SQL инъекций: {len(results['sql_injections'])}")
-    print(f"Найдено XSS попыток: {len(results['xss_attempts'])}")
-    print(f"Подозрительных User-Agent: {len(results['suspicious_user_agents'])}")
-    print(f"Неудачных логинов: {len(results['failed_logins'])}")
-
-    # Детальный вывод
-    print("\n=== ДЕТАЛИ ===")
-    for threat_type, lines in results.items():
-        if lines:
-            print(f"\n{threat_type}:")
-            for line in lines:
-                print(f" - {line}")
-
+    print("\nНОРМАЛИЗОВАННЫЕ ДАННЫЕ:")
+    normalized = report.get('normalized_data', {})
+    for category, data in normalized.items():
+        valid_count = len(data.get('valid', []))
+        invalid_count = len(data.get('invalid', []))
+        print(f" {category}: {valid_count} валидных, {invalid_count} невалидных")
 
 
 if __name__ == "__main__":
@@ -377,7 +630,6 @@ if __name__ == "__main__":
     with open('messy_data.txt', 'r', encoding='utf-8') as f:
         messy_data = f.read()
 
-
     # Запуск расследования
-    report = generate_comprehensive_report(main_text, log_text, messy_data)
+    report = generate_comprehensive_report(main_text, log_text, 'messy_data.txt')
     print_report(report)
