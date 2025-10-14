@@ -1,6 +1,5 @@
 import re
 
-
 def analyze_logs(log_text):
     """
     Анализирует логи веб-сервера на предмет атак
@@ -10,13 +9,12 @@ def analyze_logs(log_text):
     suspicious_user_agents = []
     failed_logins = []
 
-
     log_pattern = re.compile(
         r'(?P<ip>\d+\.\d+\.\d+\.\d+)\s+'  # IP
         r'(?P<ident>\S+)\s+'  # идентификатор (-)
         r'"(?P<method>\S+)\s(?P<path>\S+)[^"]*"\s*'  # Метод и путь
         r'(?P<status>\d{3})?\s*'  # Статус 
-        r'"(?P<user_agent>[^"]*)?"?'  # User-Agent 
+        r'"(?P<user_agent>[^"]*)?"?'  # User-Agent
     )
 
     # Паттерны для SQL-инъекций
@@ -24,7 +22,7 @@ def analyze_logs(log_text):
         r"(\%27)|(\')|(\-\-)|(\%23)|(\#)|(\%3D)|(\='\")",
         r"UNION\s+SELECT",
         r"\sOR\s+\d+=\d+",
-        r"sleep\(\d+\)",
+        r"sleep$\d+$",
         r"SELECT\s+\*",
         r"DROP\s+TABLE",
         r"INSERT\s+INTO",
@@ -39,10 +37,10 @@ def analyze_logs(log_text):
         r"javascript:",
         r"on\w+\s*=\s*[\"']?",
         r"<img[^>]+src=([\"'])?javascript:",
-        r"alert\([^)]*\)",
+        r"alert$[^)]*$",
         r"<iframe.*?>",
         r"<svg.*?>",
-        r"eval\s*\("
+        r"eval\s*$"
     ]
     xss_regexes = [re.compile(p, re.IGNORECASE) for p in xss_patterns]
 
@@ -98,25 +96,31 @@ def analyze_logs(log_text):
         'failed_logins': failed_logins
     }
 
+def read_log_file(filename):
+    with open('final_logging', "r", encoding="utf-8") as f:
+        return f.read()
 
-logs = '''
-192.168.1.100 - "GET /search?q=<script>alert('xss')</script>" 200 "Mozilla"
-203.0.113.5 - "GET /admin" 401 "EvilBot/1.0"
-10.0.0.50 - "GET /products?id=1' OR '1'='1" 200 "Chrome"
-94.130.12.45 - "GET /test?cmd=sleep(5)" 200 "sqlmap"
-'''
+def write_results_to_file(results, filename):
+    with open('logs', "w", encoding="utf-8") as f:
+        f.write("=== РЕЗУЛЬТАТЫ АНАЛИЗА ===\n")
+        f.write(f"Найдено SQL инъекций: {len(results['sql_injections'])}\n")
+        f.write(f"Найдено XSS попыток: {len(results['xss_attempts'])}\n")
+        f.write(f"Подозрительных User-Agent: {len(results['suspicious_user_agents'])}\n")
+        f.write(f"Неудачных логинов: {len(results['failed_logins'])}\n")
 
-results = analyze_logs(logs)
-print("=== РЕЗУЛЬТАТЫ АНАЛИЗА ===")
-print(f"Найдено SQL инъекций: {len(results['sql_injections'])}")
-print(f"Найдено XSS попыток: {len(results['xss_attempts'])}")
-print(f"Подозрительных User-Agent: {len(results['suspicious_user_agents'])}")
-print(f"Неудачных логинов: {len(results['failed_logins'])}")
+        f.write("\n=== ДЕТАЛИ ===\n")
+        for threat_type, lines in results.items():
+            if lines:
+                f.write(f"\n{threat_type}:\n")
+                for line in lines:
+                    f.write(f"  - {line}\n")
 
-# Детальный вывод
-print("\n=== ДЕТАЛИ ===")
-for threat_type, lines in results.items():
-    if lines:
-        print(f"\n{threat_type}:")
-        for line in lines:
-            print(f"  - {line}")
+if __name__ == "__main__":
+    input_log_file = "server_logs.txt"       # заменить на путь к вашему файлу с логами
+    output_report_file = "analysis_report.txt"  # файл для вывода результата
+
+    logs = read_log_file(input_log_file)
+    results = analyze_logs(logs)
+    write_results_to_file(results, output_report_file)
+
+    print(f"Анализ завершён. Результаты записаны в {output_report_file}")
