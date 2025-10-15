@@ -577,50 +577,56 @@ def generate_comprehensive_report(main_text: str, log_text: str,
     return report
 
 
-def print_report(report: Dict) -> None:
-    '''
-    Outputs the report in a readable format.
+def save_report_to_file(report: Dict, filename: str = "report.txt") -> None:
+    """
+    Сохраняет отчёт в текстовый файл.
 
     Args:
-        report (Dict): Generated report for output
+        report (Dict): Сгенерированный отчёт
+        filename (str): Имя файла для сохранения
+    """
 
-    Returns:
-        None: The function returns nothing, only print
-    '''
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("=" * 50 + "\n")
+        f.write("ОТЧЕТ ОПЕРАЦИИ 'DATA SHIELD'\n")
+        f.write("=" * 50 + "\n\n")
 
-    print("=" * 50)
-    print("ОТЧЕТ ОПЕРАЦИИ 'DATA SHIELD'")
-    print("=" * 50)
+        f.write("ФИНАНСОВЫЕ ДАННЫЕ:\n")
+        f.write(str(report['financial_data']) + "\n\n")
 
-    print("\nФИНАНСОВЫЕ ДАННЫЕ:")
-    print(report['financial_data'])
+        f.write("СЕКРЕТНЫЕ КЛЮЧИ:\n")
+        for s in report['secrets']:
+            f.write(f" - {s}\n")
+        f.write("\n")
 
-    print("\nСЕКРЕТНЫЕ КЛЮЧИ:")
-    for s in report['secrets']:
-        print(f" - {s}")
+        f.write("СИСТЕМНАЯ ИНФОРМАЦИЯ:\n")
+        for k, v in report['system_info'].items():
+            f.write(f" {k.upper()}: {', '.join(v) if v else '—'}\n")
+        f.write("\n")
 
-    print("\nСИСТЕМНАЯ ИНФОРМАЦИЯ:")
-    for k, v in report['system_info'].items():
-        print(f" {k.upper()}: {', '.join(v) if v else '—'}")
+        f.write("РАСШИФРОВАННЫЕ СООБЩЕНИЯ:\n")
+        for k, v in report['encoded_massages'].items():
+            if v:
+                f.write(f" {k}: {(v)} \n")
+        f.write("\n")
 
-    print(f"\nРАСШИФРОВАННЫЕ СООБЩЕНИЯ:")
-    for k, v in report['encoded_massages'].items():
-        if v: print(f" {k}: {len(v)}")
+        f.write("УГРОЗЫ БЕЗОПАСНОСТИ:\n")
+        for k, v in report['security_threats'].items():
+            f.write(f" {k}: {(v)} \n")
+        f.write("\n")
 
-    print("\nУГРОЗЫ БЕЗОПАСНОСТИ:")
-    for k, v in report['security_threats'].items():
-        print(f" {k}: {len(v)} найдено")
+        f.write("НОРМАЛИЗОВАННЫЕ ДАННЫЕ:\n")
+        normalized = report.get('normalized_data', {})
+        for category, data in normalized.items():
+            valid_count = (data.get('valid', []))
+            invalid_count = (data.get('invalid', []))
+            f.write(f" {category}: {valid_count} валидных, {invalid_count} невалидных\n")
 
-    print("\nНОРМАЛИЗОВАННЫЕ ДАННЫЕ:")
-    normalized = report.get('normalized_data', {})
-    for category, data in normalized.items():
-        valid_count = len(data.get('valid', []))
-        invalid_count = len(data.get('invalid', []))
-        print(f" {category}: {valid_count} валидных, {invalid_count} невалидных")
+    print(f"\nОтчёт сохранён в файл: {filename}")
 
 
 if __name__ == "__main__":
-    # Чтение файлов с данными
+    # Чтение исходных данных
     with open('data_leak_sample.txt', 'r', encoding='utf-8') as f:
         main_text = f.read()
 
@@ -630,6 +636,8 @@ if __name__ == "__main__":
     with open('messy_data.txt', 'r', encoding='utf-8') as f:
         messy_data = f.read()
 
-    # Запуск расследования
+    # Генерация отчёта
     report = generate_comprehensive_report(main_text, log_text, 'messy_data.txt')
-    print_report(report)
+
+    # Сохранение отчёта в файл
+    save_report_to_file(report, "report.txt")
