@@ -40,7 +40,7 @@ def check_luhn(text: str) -> bool:
 
     for i in range(len(card)):
         num_text = int(card[i])
-        if i % 2 == 0 :
+        if i % 2 == 0:
             if num_text * 2 > 9:
                 total_sum += (2 * num_text) - 9
             else:
@@ -54,12 +54,12 @@ def check_luhn(text: str) -> bool:
 def find_and_validate_credit_cards(text: str) -> Dict[str, List[str]]:
     '''
     Finds and verifies credit card numbers in the text.
-    
+
     Args:
         text (str): Text for searching for card numbers
-        
+
     Returns:
-        Dictionary with 'valid' and 'invalid' keys containing lists 
+        Dictionary with 'valid' and 'invalid' keys containing lists
         valid and invalid card numbers
     '''
 
@@ -141,7 +141,7 @@ def find_system_info(text: str) -> Dict[str, List[str]]:
         {'ips': [], 'files': [], 'emails': []}
     '''
 
-    part = r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)' #шаблон для IP4, далее его *4#
+    part = r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'  # шаблон для IP4, далее его *4#
     ipv4 = rf'(?:{part}\.){{3}}{part}'
     ipv6 = (
         r'(?:'
@@ -182,7 +182,7 @@ def find_system_info(text: str) -> Dict[str, List[str]]:
 
     # Файлы
     files_pattern = regex.compile(
-    r'\b[A-Z0-9_(){}\-]+\.(?:txt|docx?|pdf|png|jpg|jpeg|exe|csv|py|html|json|xml|zip|rar)\b',
+        r'\b[A-Z0-9_(){}\-]+\.(?:txt|docx?|pdf|png|jpg|jpeg|exe|csv|py|html|json|xml|zip|rar)\b',
         regex.IGNORECASE
     )
 
@@ -203,8 +203,8 @@ def decode_messages(text: str) -> Dict[str, List[str]]:
     """
 
     base64_pattern = regex.compile(r'\b(?:[A-Z0-9+/]{4}){2,}(?:==|=)?\b',
-    regex.IGNORECASE
-              )
+                                   regex.IGNORECASE
+                                   )
     base_decoded = []
     for match in base64_pattern.findall(text):
         if len(match) % 4 != 0:
@@ -219,8 +219,8 @@ def decode_messages(text: str) -> Dict[str, List[str]]:
             base_decoded.append(decoded)
 
     hex_pattern = regex.compile(r'0x[0-9A-F]+|(?:\\x[0-9A-Fa-f]{2})+',
-    regex.IGNORECASE
-    )
+                                regex.IGNORECASE
+                                )
     hex_decoded = []
     for match in hex_pattern.findall(text):
         try:
@@ -259,7 +259,6 @@ def decode_messages(text: str) -> Dict[str, List[str]]:
     }
 
 
-
 def analyze_logs(log_text: str) -> Dict[str, List[str]]:
     '''
     Analyzes the logs of the web server for attacks.
@@ -274,7 +273,6 @@ def analyze_logs(log_text: str) -> Dict[str, List[str]]:
         - suspicious_user_agents: suspicious User-Agent
         - failed_logins: failed login attempts
     '''
-
 
     sql_injections = []
     xss_attempts = []
@@ -422,9 +420,9 @@ def add_spase(text: str) -> str:
 
 
 def parse_date(date_str: str):
-    formats = ['%d.%m.%Y', '%Y/%m/%d', '%d-%b-%Y', '%d-%m-%Y','%d/%m/%Y','%d-%m-%Y',
-                    '%Y.%m.%d', '%Y-%m-%d', '%d/%b/%Y', '%d.%b.%Y' ,'%Y-%b-%d',
-                    '%Y.%b.%d', '%d-%B-%Y', '%d/%B/%Y', '%d.%B.%Y', '%Y-%B-%d','%Y.%B.%d']
+    formats = ['%d.%m.%Y', '%Y/%m/%d', '%d-%b-%Y', '%d-%m-%Y', '%d/%m/%Y', '%d-%m-%Y',
+               '%Y.%m.%d', '%Y-%m-%d', '%d/%b/%Y', '%d.%b.%Y', '%Y-%b-%d',
+               '%Y.%b.%d', '%d-%B-%Y', '%d/%B/%Y', '%d.%B.%Y', '%Y-%B-%d', '%Y.%B.%d']
 
     for fmt in formats:
         try:
@@ -442,7 +440,7 @@ def phones(data1):
         'dates': {'normalized': [], 'invalid': []},
         'inn': {'valid': [], 'invalid': []},
         'cards': {'valid': [], 'invalid': []}
-             }
+    }
 
     data_num = data1.get('phones', [])
     pattern = (r"(\+7|8|007)[ ]?[\-*.(]?\d{3}[)\-*.]?[ ]?"
@@ -474,7 +472,11 @@ def phones(data1):
     for date_str in data1.get('dates', []):
         date_str = date_str.strip()
         normalized = parse_date(date_str)
-        dt = datetime.strptime(normalized, '%d.%m.%Y')
+        if normalized is None:
+            # Обработка ситуации, когда значение не определено
+            continue  # или логика по вашему усмотрению
+        else:
+            dt = datetime.strptime(normalized, '%d.%m.%Y')
         year = dt.year
         month = dt.month
         day = dt.day
@@ -522,7 +524,6 @@ def read_and_parse(filepath: str) -> Dict[str, List[str]]:
             line = line.strip()
             if not line:
                 continue
-
 
             parts = line.split(':', 1)
             if len(parts) != 2:
